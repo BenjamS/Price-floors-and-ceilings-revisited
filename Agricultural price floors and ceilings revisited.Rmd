@@ -1,0 +1,410 @@
+---
+title: Agricultural price floors and ceilings revisted
+author:
+  - name: Benjamin Schiek
+    email: b.schiek@cgiar.org
+    affiliation: Alliance Bioversity-CIAT
+    corresponding: b.schiek@cgiar.org
+address:
+  - code: Alliance Bioversity-CIAT
+    address: Alliance Bioversity-CIAT, Km 17 Recta Cali-Palmira, Valle del Cauca, Colombia, CP 763537
+abstract: |
+  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Curabitur eget porta erat. Morbi consectetur est vel gravida pretium. Suspendisse ut dui eu ante cursus gravida non sed sem. Nullam sapien tellus, commodo id velit id, eleifend volutpat quam. Phasellus mauris velit, dapibus finibus elementum vel, pulvinar non tellus. Nunc pellentesque pretium diam, quis maximus dolor faucibus id. Nunc convallis sodales ante, ut ullamcorper est egestas vitae. Nam sit amet enim ultrices, ultrices elit pulvinar, volutpat risus.
+
+bibliography: Ag price floors refs.bib
+output: rticles::plos_article
+csl: plos.csl
+header-includes:
+  #- \usepackage{setspace}\doublespacing
+  - \usepackage{float}
+  #- \usepackage[nomarkers,tablesonly]{endfloat}
+  #- \usepackage[printfigures]{figcaps}
+  - \floatplacement{figure}{H}
+  - \usepackage[nolists]{endfloat}
+  - \usepackage{caption}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                      message = FALSE,
+                      warning = FALSE,
+                      dev = c("png", "tiff"),
+                      dpi = 300)
+
+#library(plyr)
+library(tidyverse)
+library(patchwork)
+# library(ggrepel)
+# library(kableExtra)
+# library(flextable)
+# library(gganimate)
+
+# shape_vec <- c(21:24, 4)
+# point_size <- 1.5
+# smallPoint_size <- 1
+# label_size <- 2.5
+# smallLabel_size <- 2
+title_size <- 8
+subtitle_size <- 7
+# legendText_size <- 7
+axisText_size <- 6
+axisTitle_size <- 7
+facetTitle_size <- 7
+#==========================================================================
+# Define functions
+shift_legend2 <- function(p) {
+  # ...
+  # to grob
+  gp <- ggplotGrob(p)
+  facet.panels <- grep("^panel", gp[["layout"]][["name"]])
+  empty.facet.panels <- sapply(facet.panels, function(i) "zeroGrob" %in% class(gp[["grobs"]][[i]]))
+  empty.facet.panels <- facet.panels[empty.facet.panels]
+  
+  # establish name of empty panels
+  empty.facet.panels <- gp[["layout"]][empty.facet.panels, ]
+  names <- empty.facet.panels$name
+  # example of names:
+  #[1] "panel-3-2" "panel-3-3"
+  
+  # now we just need a simple call to reposition the legend
+  #lemon::reposition_legend(p, 'center', panel=names)
+  p_out <- lemon::reposition_legend(p, 'center', panel=names)
+  #class(lemon::reposition_legend(p, 'center', panel=names))
+  return(p_out)
+}
+
+
+
+effProdPrice <- function(P, pIntervene, tau, s, type, output){
+  
+  d1 <- log(P / pIntervene) / (s * sqrt(tau)) + s / 2 * sqrt(tau)
+  d2 <- d1 - s * sqrt(tau)
+  N1 <- pnorm(d1)
+  N2 <- pnorm(d2)
+  
+  if(type == "floor"){
+    PeffProd <- P * N1 + pIntervene * (1 - N2)
+    
+  }
+  
+  if(type == "ceiling"){
+    PeffProd <- P * (1 - N1) + pIntervene * N2
+  }
+  
+  if(output == "Peff"){
+    out <- PeffProd
+  }
+  
+  if(output == "N2"){
+    out <- N2
+  }
+  
+  if(output == "N1"){
+    out <- N1
+  }
+
+  
+  return(out)
+}
+
+#Implied volatility root fun
+ivRootFn <- function(s, optP, P, strike, tau){
+  Pfloor <- strike
+  #slack <- exp(0.05 * tau) * optP - effProdPrice(P, Pfloor, tau, s) - Pfloor
+  slack <- exp(0.05 * tau) * optP - effProdPrice(P, Pfloor, tau, s, type = "floor") + Pfloor
+  return(slack)
+}
+
+```
+
+
+
+# Introduction
+
+Motivation:
+
+Better understanding of how price floors can be used as tools to improve food security policy instruments in developing world.
+
+Also in the developed world. The EU enforces price floors. Price floors are expected to become the principal instrument in USDA policy too in the coming years, as ARC program is phased out (graphic).
+
+
+Price floors are supposed to ... "deadweight loss", surplus...but   but this is only true when introduced post hoc. China example. Risk of credible commitment problem (Kenya Jayne). When price floors are determined in advance, producers have a chance to react and alter planting decisions, and hence alter supply. As of yet, no theory has been proposed to model such effects. ...Also DWL not a thing. Consumer surplus critique...Marshall, Samuelson.
+
+Also, price ceilings...a certain symmetry
+
+Effect on supply, equilibrium price, 
+
+# Application
+
+HRW wheat facts: planted in September-October and harvested the following July. Constitutes the majority of the wheat crop. Most sold in July (mkting wgts).
+
+Price serise covers a range of different policy regimes, and two historic global food crises, even so, it's a Wiener process. Fig
+
+Lots of other policy instruments at play in planting decisions, ARC, counter-cyclical payments, etc.
+
+Demand might also shift, especially considering that 80% of the farm bill is spent on demand side (SNAP, etc.)
+
+[?Careful, drift rate can change and even reverse from one season to the next. Volatility seems to stay same though.?]
+
+```{r, fig.show = "hold", fig.width = 6, fig.height=3, fig.align="left", fig.cap="\\label{fig:kcHRWwPrice}...", echo = FALSE}
+
+#Wheat futures price (KC=F) data downloaded from yahoo finance on 28 Sept. 2021
+this_folder <- "C:/Users/bensc/OneDrive/Documents/Agricultural price floors and ceilings revisited/"
+this_file <- "Wheat futures KEZ price 2000-2021.csv"
+this_filePath <- paste0(this_folder, this_file)
+df <- read.csv(this_filePath, stringsAsFactors = F)
+colnames(df)[ncol(df)] <- "Price"
+colnames(df)[1] <- "Date"
+df$Date <- as.Date(df$Date)
+df <- df[-which(is.na(df$Price)), ]
+
+df$diffLnP <- c(NA, diff(log(df$Price)))
+df <- df[-1, ]
+
+s <- sd(df$diffLnP)
+mDlnP <- mean(df$diffLnP)
+m <- mDlnP + s^2 / 2
+
+sYrly <- s * sqrt(252)
+mDlnPYrly <- mDlnP * 252
+confInt95 <- c(mDlnPYrly - 2 * sYrly, mDlnPYrly + 2 * sYrly)
+
+df_plot <- df
+df_plot$diffLnP <- 100 * df_plot$diffLnP
+gg <- ggplot(df_plot, aes(x = diffLnP))
+gg <- gg + geom_histogram(color = "black", fill = "brown")
+gg <- gg + labs(x = expression("%"~Delta))
+gg <- gg + theme(axis.title = element_text(size = axisTitle_size),
+                 axis.text = element_text(size = axisText_size))
+ggHist <- gg
+
+startCris <- "2007-01-02"
+endCris <- "2008-12-15"
+startCris2 <- "2010-01-04"
+endCris2 <- "2013-01-02"
+ind_startCris <- which(df$Date == startCris)
+ind_endCris <- which(df$Date == endCris)
+ind_startCris2 <- which(df$Date == startCris2)
+ind_endCris2 <- which(df$Date == endCris2)
+indCris <- c(ind_startCris:ind_endCris, ind_startCris2:ind_endCris2)
+crisDates <- df$Date[indCris]
+
+# Outside the crisis years
+df_plot <- subset(df, !(Date %in% crisDates))
+
+s <- sd(df_plot$diffLnP)
+mDlnP <- mean(df_plot$diffLnP)
+m <- mDlnP + s^2 / 2
+
+sYrlyNoCris <- s * sqrt(252)
+mDlnPYrlyNoCris <- mDlnP * 252
+confInt95NoCris <- c(mDlnPYrly - 2 * sYrly, mDlnPYrly + 2 * sYrly)
+
+# gg <- ggplot(df_plot, aes(x = diffLnP))
+# gg <- gg + geom_histogram(color = "black", fill = "brown")
+# gg
+
+#------------------------
+
+xStartCris <- df$Date[ind_startCris]
+xEndCris <- df$Date[which(df$Date == endCris)]
+
+xStartCris2 <- df$Date[which(df$Date == startCris2)]
+xEndCris2 <- df$Date[which(df$Date == endCris2)]
+
+xFBill2002 <- df$Date[which(df$Date == "2002-05-13")]
+yFBill2002 <- df$Price[which(df$Date == "2002-05-13")]
+xFBill2008 <- df$Date[which(df$Date == "2008-06-18")]
+yFBill2008 <- df$Price[which(df$Date == "2008-06-18")]
+xFBill2014 <- df$Date[which(df$Date == "2014-02-07")]
+yFBill2014 <- df$Price[which(df$Date == "2014-02-07")]
+thisLinetyp <- "dashed"
+gg <- ggplot(df, aes(x = Date, y = Price, group = 1))
+gg <- gg + geom_line()
+gg <- gg + annotate("rect", fill = "violet", alpha = 0.4, 
+                    xmin = xStartCris, xmax = xEndCris,
+                    ymin = -Inf, ymax = Inf)
+gg <- gg + annotate("rect", fill = "violet", alpha = 0.4, 
+                    xmin = xStartCris2, xmax = xEndCris2,
+                    ymin = -Inf, ymax = Inf)
+# gg <- gg + annotate("text", x = xFBill2008, y = yFBill2008,
+#                     label = "2008 Farm Bill",
+#                     vjust = 1, hjust = 0.5, angle = 90)
+gg <- gg + geom_vline(xintercept = xFBill2002, linetype = thisLinetyp)
+gg <- gg + geom_vline(xintercept = xFBill2008, linetype = thisLinetyp)
+gg <- gg + geom_vline(xintercept = xFBill2014, linetype = thisLinetyp)
+gg <- gg + theme(axis.title.x = element_blank(),
+                 axis.title.y = element_text(size = axisTitle_size),
+                 axis.text = element_text(size = axisText_size),
+                 axis.text.x = element_blank())
+gg_price <- gg 
+
+df_plot <- df
+df_plot$diffLnP <- 100 * df_plot$diffLnP
+gg <- ggplot(df_plot, aes(x = Date, y = diffLnP, group = 1))
+gg <- gg + geom_line()
+gg <- gg + annotate("rect", fill = "violet", alpha = 0.4, 
+                    xmin = xStartCris, xmax = xEndCris,
+                    ymin = -Inf, ymax = Inf)
+gg <- gg + annotate("rect", fill = "violet", alpha = 0.4, 
+                    xmin = xStartCris2, xmax = xEndCris2,
+                    ymin = -Inf, ymax = Inf)
+# gg <- gg + annotate("text", x = xFBill2008, y = yFBill2008,
+#                     label = "2008 Farm Bill",
+#                     vjust = 1, hjust = 0.5, angle = 90)
+gg <- gg + geom_vline(xintercept = xFBill2002, linetype = thisLinetyp)
+gg <- gg + geom_vline(xintercept = xFBill2008, linetype = thisLinetyp)
+gg <- gg + geom_vline(xintercept = xFBill2014, linetype = thisLinetyp)
+gg <- gg + labs(y = expression("%"~Delta))
+gg <- gg + theme(axis.title.x = element_blank(),
+                 axis.title.y = element_text(size = axisTitle_size),
+                 axis.text = element_text(size = axisText_size))
+gg_priceDiff <- gg 
+
+gg_p <- gg_price / gg_priceDiff + plot_layout(ncol = 1, heights = c(1, 1 / 3))
+
+this_plotTitle <- "Kansas City Hard Red Winter Wheat Future Price 2000-2020"
+wrap_plots(list(gg_p, ggHist)) + plot_layout(ncol = 2) +
+  plot_annotation(title = this_plotTitle) &
+  theme(plot.title = element_text(size = title_size))
+
+```
+
+**Fig x1. Kansas City Hard Red Winter Wheat Future Price 2000-2020.** Number 1, ...protein etc., Downloaded from Yahoo Finance using the R tidyquant package (symbol: "KC=F"). Clockwise from top left: 1) Price series, 2) Histogram of daily returns, 3) Daily returns series. The global food crisis years of 2007-2008 and 2010-2012 are shaded in violet. Major U.S. farm bill enactments are marked by dotted lines.
+
+&nbsp;
+
+```{r, fig.show = "hold", fig.width = 5, fig.height=4, fig.align="left", fig.cap="\\label{fig:}...", echo = FALSE}
+
+# (Mkting year (MY) befins in June and ends in May)
+# File "Wheat Data-Recent.xls"
+
+# 2016/2017 HRW production: 1082 million bushels at 49.5 bushels/acre, Avg. price $3.37/bushel, price floor 2.94, July price 4.24
+
+# 2017/2018 HRW production: 750.13 million bushels at 42.5 bushels/acre, Avg. price $4.18/bushel, price floor 2.94, July price 5.65
+
+# Worksheet "WheatYearbookTable01":
+# 2018/2019 HRW production: 662.25 million bushels at 39.1 bushels/acre, Avg. price $5.01/bushel, price floor 2.94
+# Worksheet "WheatYearbookTable19":
+# July 2018 Kansas City price: $6.20/bushel
+
+# 2019/2020 HRW production: 844.95 million bushels at 48.2 bushels/acre, Avg. price $4.24/bushel, price floor 3.38, July price 5.56
+
+
+# File "futmodwheat-2018-19.xlsx", "Data" worksheet, Table 12:
+# September 2018 WASDE SAP forecast for 2019: $5.10/bushel, avg over all classes
+# Table 13, same worksheet, gives the price floors. For MY 2019/2020, it's $3.38
+#Price floors
+#2002/03-2003/04: 2.80
+#2004/05-2009/10: 2.75
+#2010/11-2018/19: 2.94
+#2019/20-2023/24: 3.38
+# (Mkting year (MY) befins in June and ends in May)
+
+df_lastYr <- subset(df, Date > "2016-09-01" &
+                    Date < "2017-08-01")
+s <- sd(df_lastYr$diffLnP)
+mDlnP <- mean(df_lastYr$diffLnP)
+m <- mDlnP + s^2 / 2
+
+# Planting in Sept. 2017, selling in July 2018
+Pfloor <- 2.94
+#tau <- 10 * 21 / 252 # Assume planting in October and harvest & sale in July
+tauStart <- 10 * 21
+tauEnd <- 1
+tau_vec <- tauStart:tauEnd
+SAPforecast <- 4.4
+Pforecast <- SAPforecast #* 1.10
+Peff <- effProdPrice(Pforecast, Pfloor, tau, s, type = "floor", output = "Peff")
+Nd2 <- effProdPrice(Pforecast_vec, Pfloor, tau, s, type = "floor", output = "N2")
+P
+
+acresPlanted <- 23.426
+
+
+
+df_thisYr <- subset(df, Date > "2017-08-01" &
+                    Date < "2018-08-01")
+P0_vec <- df_thisYr$Price / 100
+tauVec <- nrow(df_thisYr):1
+Pforecast_vec <- P0_vec * exp(m * tauVec)
+
+Peff <- effProdPrice(Pforecast_vec, Pfloor, tau_vec, s, type = "floor", output = "Peff")
+Nd2 <- effProdPrice(Pforecast_vec, Pfloor, tau_vec, s, type = "floor", output = "N2")
+P
+
+Pforecast_vec / Peff
+
+Pvec <- seq(0.01, 10, length.out = 20)
+Peff^eta
+
+
+
+
+
+#or
+df_thisYr <- subset(df, Date > "2018-08-01" &
+                    Date < "2019-08-01")
+P0_vec <- df_thisYr$Price / 100
+tauVec <- nrow(df_thisYr):1
+Pforecast_vec <- P0_vec * exp(m * tauVec)
+Pforecast
+df_thisYr$Peff <- effProdPrice(Pforecast_vec, Pfloor, tauVec, s, type = "floor", output = "Peff")
+
+df_thisYr$N2 <- effProdPrice(Pforecast_vec, Pfloor, tauVec, s, type = "floor", output = "N2")
+
+df_plot <- df_thisYr[, c("Date", "Price", "Peff", "N2")]
+#df_plot$Price <- df_plot$Price / 100
+df_plot$dN2 <- c(NA, diff(df_plot$N2))
+df_plot$portf <- 100 * Pfloor * (1 - df_plot$dN2)
+
+%>%
+  gather(Type, Value, Price:Peff) %>% as.data.frame()
+
+gg <- ggplot(df_plot, aes(x = Date, y = Value, group = Type, color = Type))
+gg <- gg + geom_line()
+gg
+
+
+
+
+
+
+
+
+
+
+
+df_plot <- subset(df, Date > "2016-09-01" &
+                    Date < "2017-08-01")
+out <- polyfit(1:nrow(df_plot), df_plot$Price)
+slope <- round(out[1], 2)
+s <- round(sd(diff(log(df_plot$Price)), na.rm = T), 2) # p. 326 Hull 9th edition
+
+this_title <- "2016/17"
+this_subtitle <- paste0("Drift = ", slope, ", Volatility = ", s)
+gg <- ggplot(df_plot, aes(x = Date, y = Price))
+gg <- gg + geom_line()
+gg <- gg + geom_smooth(aes(group = NULL, fill = NULL, shape = NULL), method = lm, se = F)
+gg <- gg + labs(title = this_title, subtitle = this_subtitle)
+gg <- gg + theme(plot.title = element_text(size = title_size),
+                 plot.subtitle = element_text(size = subtitle_size),
+                 axis.title = element_text(size = axisTitle_size),
+                 axis.text = element_text(size = axisText_size))
+gg
+
+
+
+```
+
+
+
+# Discussion
+
+Issue of gaming. Could result in shortfall in case of price floor, surplus in case of price ceiling.
+
+Application in the carbon market
+
+
+
+# References {#references .unnumbered}
